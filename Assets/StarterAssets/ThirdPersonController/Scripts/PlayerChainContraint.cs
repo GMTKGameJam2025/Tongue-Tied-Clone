@@ -9,6 +9,7 @@ public class PlayerRopeConstraint : MonoBehaviour
     public float ropeLength = 5.0f;
     public bool ropeEnabled = true;
     public LayerMask obstacleLayerMask = -1; // What layers can the rope wrap around
+    public float offset = 0.5f;
 
     [Header("Visual")]
     public bool showRope = true;
@@ -67,7 +68,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         _ropePoints[0] = anchorPoint.position;
 
         // Get the last point in our rope (the point we're checking from)
-        Vector3 lastPoint = _ropePoints[_ropePoints.Count - 1];
+        Vector3 lastPoint = _ropePoints[^1];
         Vector3 playerPos = transform.position;
 
         // Use elevated positions for the raycast to match visual rope height
@@ -82,14 +83,16 @@ public class PlayerRopeConstraint : MonoBehaviour
         Vector3 direction = elevatedPlayerPos - elevatedLastPoint;
         float distance = direction.magnitude;
 
-        if (Physics.Raycast(elevatedLastPoint, direction.normalized, out hit, distance, obstacleLayerMask))
+        if (Physics.Linecast(elevatedPlayerPos, elevatedLastPoint, out hit, obstacleLayerMask))
         {
             // There's an obstacle! Add the hit point as a new rope point
             Vector3 hitPoint = hit.point;
 
             // Add a larger offset along the surface normal to avoid going through objects
-            Vector3 offset = hit.normal * 0.1f;
-            hitPoint += offset;
+            Vector3 localOffset = hit.normal * offset;
+            hitPoint += localOffset;
+            
+            Debug.DrawRay(hit.point, localOffset * 10f, Color.cyan, 1f);
 
             // Also ensure the point is at the proper rope height
             hitPoint.y = transform.position.y + 1f;
@@ -159,7 +162,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         // Add the final segment from last rope point to player (both elevated)
         if (_ropePoints.Count > 0)
         {
-            Vector3 elevatedLastPoint = _ropePoints[_ropePoints.Count - 1];
+            Vector3 elevatedLastPoint = _ropePoints[^1];
             elevatedLastPoint.y = transform.position.y + 1f;
             totalLength += Vector3.Distance(elevatedLastPoint, elevatedPlayerPos);
         }
@@ -167,7 +170,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         // If we're exceeding the rope length, pull the player back
         if (totalLength > ropeLength)
         {
-            Vector3 lastRopePoint = _ropePoints[_ropePoints.Count - 1];
+            Vector3 lastRopePoint = _ropePoints[^1];
             Vector3 toPlayer = transform.position - lastRopePoint; // Use ground positions for movement
             float lastSegmentLength = toPlayer.magnitude;
             float allowedLastSegmentLength = ropeLength - totalLength + lastSegmentLength;
@@ -223,7 +226,7 @@ public class PlayerRopeConstraint : MonoBehaviour
 
         if (_ropePoints.Count > 0)
         {
-            totalLength += Vector3.Distance(_ropePoints[_ropePoints.Count - 1], playerPos);
+            totalLength += Vector3.Distance(_ropePoints[^1], playerPos);
         }
 
         return totalLength;
@@ -260,7 +263,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         // Draw final segment to player
         if (_ropePoints.Count > 0)
         {
-            Gizmos.DrawLine(_ropePoints[_ropePoints.Count - 1], transform.position);
+            Gizmos.DrawLine(_ropePoints[^1], transform.position);
         }
     }
 }
