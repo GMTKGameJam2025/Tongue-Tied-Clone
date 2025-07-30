@@ -12,7 +12,11 @@ public class PlayerRopeConstraint : MonoBehaviour
     public float hitNormalOffset = 0.5f; // Offset for linecast hit
     public float elevationOffset = 1.0f; // Height offset for rope visual and collision detection
 
-
+    [Header("Item Collection")]
+    public LayerMask itemLayerMask = 1 << 7; // Layer for collectible items (default layer 7)
+    public float ropeExtensionPerItem = 3.0f; // How much rope length increases per item
+    public AudioClip itemCollectSound; // Optional sound effect
+    
     [Header("Visual")]
     public bool showRope = true;
     public float ropeWidth = 0.05f;
@@ -24,10 +28,24 @@ public class PlayerRopeConstraint : MonoBehaviour
     private CharacterController _controller;
     private LineRenderer _line;
     private List<Vector3> _ropePoints = new List<Vector3>();
+    private AudioSource _audioSource;
+    private float _initialRopeLength; // Store the initial rope length
+
+    // Events for item collection (optional)
+    public System.Action<GameObject> OnItemCollected;
+    public System.Action<float> OnRopeLengthChanged;
 
     void Start()
     {
         _controller = GetComponent<CharacterController>();
+        _initialRopeLength = ropeLength; // Store initial length
+
+        // Get or add AudioSource for sound effects
+        _audioSource = GetComponent<AudioSource>();
+        if (_audioSource == null && itemCollectSound != null)
+        {
+            _audioSource = gameObject.AddComponent<AudioSource>();
+        }
 
         // Initialize rope points with just the anchor
         if (anchorPoint != null)
@@ -53,9 +71,51 @@ public class PlayerRopeConstraint : MonoBehaviour
             return;
         }
 
+        CheckForItemCollection();
         UpdateRopePoints();
         EnforceRopeConstraint();
         UpdateVisuals();
+    }
+
+    void CheckForItemCollection()
+    {
+        // Get all colliders touching the character controller
+        Collider[] nearbyColliders = Physics.OverlapSphere(
+            transform.position + _controller.center, 
+            _controller.radius + 0.1f, // Slightly larger than controller radius
+            itemLayerMask
+        );
+
+        foreach (Collider collider in nearbyColliders)
+        {
+            // Double check if it's really an item by checking the layer
+            if (((1 << collider.gameObject.layer) & itemLayerMask) != 0)
+            {
+                CollectItem(collider.gameObject);
+            }
+        }
+    }
+
+    void CollectItem(GameObject item)
+    {
+        // Increase rope length
+        ropeLength += ropeExtensionPerItem;
+        
+        // Play sound effect if available
+        if (_audioSource != null && itemCollectSound != null)
+        {
+            _audioSource.PlayOneShot(itemCollectSound);
+        }
+
+        // Trigger events
+        OnItemCollected?.Invoke(item);
+        OnRopeLengthChanged?.Invoke(ropeLength);
+
+        // Optional: Add particle effect or visual feedback here
+        Debug.Log($"Item collected! New rope length: {ropeLength}");
+
+        // Destroy the item
+        Destroy(item);
     }
 
     void UpdateRopePoints()
@@ -239,6 +299,25 @@ public class PlayerRopeConstraint : MonoBehaviour
         }
     }
 
+    // Reset rope length to initial value
+    public void ResetRopeLength()
+    {
+        ropeLength = _initialRopeLength;
+        OnRopeLengthChanged?.Invoke(ropeLength);
+    }
+
+    // Get how much rope has been extended
+    public float GetRopeExtension()
+    {
+        return ropeLength - _initialRopeLength;
+    }
+
+    // Get number of items collected based on rope extension
+    public int GetItemsCollected()
+    {
+        return Mathf.FloorToInt(GetRopeExtension() / ropeExtensionPerItem);
+    }
+
     void OnDrawGizmos()
     {
         if (!ropeEnabled || anchorPoint == null) return;
@@ -262,5 +341,9 @@ public class PlayerRopeConstraint : MonoBehaviour
         {
             Gizmos.DrawLine(_ropePoints[^1], transform.position);
         }
+
+        // Draw item collection radius
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position + _controller.center, _controller.radius + 0.1f);
     }
 }
