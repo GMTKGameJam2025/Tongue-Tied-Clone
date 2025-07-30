@@ -9,7 +9,9 @@ public class PlayerRopeConstraint : MonoBehaviour
     public float ropeLength = 5.0f;
     public bool ropeEnabled = true;
     public LayerMask obstacleLayerMask = -1; // What layers can the rope wrap around
-    public float offset = 0.5f;
+    public float hitNormalOffset = 0.5f; // Offset for linecast hit
+    public float elevationOffset = 1.0f; // Height offset for rope visual and collision detection
+
 
     [Header("Visual")]
     public bool showRope = true;
@@ -73,10 +75,10 @@ public class PlayerRopeConstraint : MonoBehaviour
 
         // Use elevated positions for the raycast to match visual rope height
         Vector3 elevatedLastPoint = lastPoint;
-        elevatedLastPoint.y = transform.position.y + 1f;
+        elevatedLastPoint.y = transform.position.y + elevationOffset;
 
         Vector3 elevatedPlayerPos = playerPos;
-        elevatedPlayerPos.y = transform.position.y + 1f;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
 
         // Check if there's an obstacle between the last point and player at rope height
         RaycastHit hit;
@@ -89,13 +91,13 @@ public class PlayerRopeConstraint : MonoBehaviour
             Vector3 hitPoint = hit.point;
 
             // Add a larger offset along the surface normal to avoid going through objects
-            Vector3 localOffset = hit.normal * offset;
+            Vector3 localOffset = hit.normal * hitNormalOffset;
             hitPoint += localOffset;
 
             Debug.DrawRay(hit.point, localOffset * 10f, Color.cyan, 1f);
 
             // Also ensure the point is at the proper rope height
-            hitPoint.y = transform.position.y + 1f;
+            hitPoint.y = transform.position.y + elevationOffset;
 
             _ropePoints.Add(hitPoint);
 
@@ -139,7 +141,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         // Calculate total rope length used at elevated positions
         float totalLength = 0f;
         Vector3 elevatedPlayerPos = transform.position;
-        elevatedPlayerPos.y = transform.position.y + 1f;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
 
         // Add up all the segments using elevated positions for consistency
         for (int i = 0; i < _ropePoints.Count - 1; i++)
@@ -148,8 +150,8 @@ public class PlayerRopeConstraint : MonoBehaviour
             Vector3 point2 = _ropePoints[i + 1];
 
             // Elevate both points for consistent measurement
-            point1.y = transform.position.y + 1f;
-            point2.y = transform.position.y + 1f;
+            point1.y = transform.position.y + elevationOffset;
+            point2.y = transform.position.y + elevationOffset;
 
             totalLength += Vector3.Distance(point1, point2);
         }
@@ -158,7 +160,7 @@ public class PlayerRopeConstraint : MonoBehaviour
         if (_ropePoints.Count > 0)
         {
             Vector3 elevatedLastPoint = _ropePoints[^1];
-            elevatedLastPoint.y = transform.position.y + 1f;
+            elevatedLastPoint.y = transform.position.y + elevationOffset; ;
             totalLength += Vector3.Distance(elevatedLastPoint, elevatedPlayerPos);
         }
 
@@ -190,14 +192,14 @@ public class PlayerRopeConstraint : MonoBehaviour
 
         // Add elevated player position (like in your original code)
         Vector3 elevatedPlayerPos = transform.position;
-        elevatedPlayerPos.y = transform.position.y + 1f;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
         allPoints.Add(elevatedPlayerPos);
 
         // Also elevate the anchor point for visual consistency
         if (allPoints.Count > 0)
         {
             Vector3 elevatedAnchor = anchorPoint.position;
-            elevatedAnchor.y = transform.position.y + 1f;
+            elevatedAnchor.y = transform.position.y + elevationOffset; ;
             allPoints[0] = elevatedAnchor;
         }
 

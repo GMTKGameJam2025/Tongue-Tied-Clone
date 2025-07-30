@@ -5824,7 +5824,8 @@ MonoBehaviour:
   obstacleLayerMask:
     serializedVersion: 2
     m_Bits: 64
-  offset: 0.05
+  hitNormalOffset: 0.01
+  elevationOffset: 1
   showRope: 1
   ropeWidth: 0.05
   ropeMaterial: {fileID: 0}
