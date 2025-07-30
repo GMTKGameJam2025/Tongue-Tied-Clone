@@ -5826,9 +5826,7 @@ MonoBehaviour:
     m_Bits: 64
   hitNormalOffset: 0.01
   elevationOffset: 1
-  itemLayerMask:
-    serializedVersion: 2
-    m_Bits: 128
+  itemTag: Item
   ropeExtensionPerItem: 3
   itemCollectSound: {fileID: 0}
   showRope: 1
@@ -7498,11 +7496,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1525117772323594885, guid: 03e03085718b53c40899372b6e45bd0a, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 11.39
+      value: 11.544
       objectReference: {fileID: 0}
     - target: {fileID: 1525117772323594885, guid: 03e03085718b53c40899372b6e45bd0a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.25
+      value: 1.298
       objectReference: {fileID: 0}
     - target: {fileID: 1525117772323594885, guid: 03e03085718b53c40899372b6e45bd0a, type: 3}
       propertyPath: m_LocalPosition.z

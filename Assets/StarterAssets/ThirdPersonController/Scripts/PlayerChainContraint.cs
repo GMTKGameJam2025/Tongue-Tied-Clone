@@ -13,10 +13,10 @@ public class PlayerRopeConstraint : MonoBehaviour
     public float elevationOffset = 1.0f; // Height offset for rope visual and collision detection
 
     [Header("Item Collection")]
-    public LayerMask itemLayerMask = 1 << 7; // Layer for collectible items (default layer 7)
+    public string itemTag = "Item"; // Tag for collectible items
     public float ropeExtensionPerItem = 3.0f; // How much rope length increases per item
     public AudioClip itemCollectSound; // Optional sound effect
-    
+
     [Header("Visual")]
     public bool showRope = true;
     public float ropeWidth = 0.05f;
@@ -71,28 +71,17 @@ public class PlayerRopeConstraint : MonoBehaviour
             return;
         }
 
-        CheckForItemCollection();
         UpdateRopePoints();
         EnforceRopeConstraint();
         UpdateVisuals();
     }
 
-    void CheckForItemCollection()
+    void OnTriggerEnter(Collider other)
     {
-        // Get all colliders touching the character controller
-        Collider[] nearbyColliders = Physics.OverlapSphere(
-            transform.position + _controller.center, 
-            _controller.radius + 0.1f, // Slightly larger than controller radius
-            itemLayerMask
-        );
-
-        foreach (Collider collider in nearbyColliders)
+        // Check if the collided object has the item tag
+        if (other.CompareTag(itemTag))
         {
-            // Double check if it's really an item by checking the layer
-            if (((1 << collider.gameObject.layer) & itemLayerMask) != 0)
-            {
-                CollectItem(collider.gameObject);
-            }
+            CollectItem(other.gameObject);
         }
     }
 
@@ -100,7 +89,7 @@ public class PlayerRopeConstraint : MonoBehaviour
     {
         // Increase rope length
         ropeLength += ropeExtensionPerItem;
-        
+
         // Play sound effect if available
         if (_audioSource != null && itemCollectSound != null)
         {
@@ -341,9 +330,5 @@ public class PlayerRopeConstraint : MonoBehaviour
         {
             Gizmos.DrawLine(_ropePoints[^1], transform.position);
         }
-
-        // Draw item collection radius
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position + _controller.center, _controller.radius + 0.1f);
     }
 }
