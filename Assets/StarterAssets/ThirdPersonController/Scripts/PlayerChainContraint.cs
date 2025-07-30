@@ -58,8 +58,19 @@ public class PlayerRopeConstraint : MonoBehaviour
             _line = gameObject.AddComponent<LineRenderer>();
             _line.startWidth = ropeWidth;
             _line.endWidth = ropeWidth;
-            _line.material = ropeMaterial ?? new Material(Shader.Find("Sprites/Default"));
+            _line.material = ropeMaterial;
             _line.useWorldSpace = true;
+
+            Texture ropeTex = Resources.Load<Texture>("FLesh");
+
+            Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            mat.mainTexture = ropeTex;
+            mat.SetColor("_BaseColor", Color.white);
+
+            _line.material = mat;
+            _line.textureMode = LineTextureMode.Tile;
+            _line.material.mainTextureScale = new Vector2(1f, 1f);
+
         }
     }
 
@@ -231,7 +242,10 @@ public class PlayerRopeConstraint : MonoBehaviour
     }
 
     void UpdateVisuals()
-    {
+    {   
+        float stretchRatio = Mathf.Clamp01(GetCurrentRopeLength() / ropeLength);
+        float inverseStretch = 1f - stretchRatio;
+
         if (!showRope || _line == null) return;
 
         _line.enabled = true;
@@ -257,6 +271,15 @@ public class PlayerRopeConstraint : MonoBehaviour
         {
             _line.SetPosition(i, allPoints[i]);
         }
+
+        float minScale = 0.15f;
+        float scale = Mathf.Lerp(1f, minScale, stretchRatio);
+        _line.widthMultiplier = ropeWidth * scale;;
+
+        AnimationCurve widthCurve = new AnimationCurve();
+        widthCurve.AddKey(0f, 2.5f);
+
+        _line.widthCurve = widthCurve;
     }
 
     // Helper method to get total rope length for debugging

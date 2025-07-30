@@ -1,2 +1,14 @@
 fileFormatVersion: 2
 guid: 268246cd78d37fa47aad698e68693c88
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - anchorPoint: {instanceID: 0}
+  - itemCollectSound: {instanceID: 0}
+  - ropeMaterial: {fileID: 2100000, guid: 65f03d5756d3fe04b9d6af72ed209989, type: 2}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
