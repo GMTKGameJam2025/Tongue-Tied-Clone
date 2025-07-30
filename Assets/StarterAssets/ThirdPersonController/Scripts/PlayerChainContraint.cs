@@ -91,7 +91,7 @@ public class PlayerRopeConstraint : MonoBehaviour
             // Add a larger offset along the surface normal to avoid going through objects
             Vector3 localOffset = hit.normal * offset;
             hitPoint += localOffset;
-            
+
             Debug.DrawRay(hit.point, localOffset * 10f, Color.cyan, 1f);
 
             // Also ensure the point is at the proper rope height
@@ -118,24 +118,19 @@ public class PlayerRopeConstraint : MonoBehaviour
 
     void RemoveUnnecessaryPoints()
     {
+        if (_ropePoints.Count < 2) return;
+
         Vector3 playerPos = transform.position;
+        Vector3 lastPoint = _ropePoints[^1];
+        Vector3 secondLastPoint = _ropePoints[^2];
 
-        // Check from the end backwards, but keep at least the anchor point
-        for (int i = _ropePoints.Count - 1; i >= 1; i--)
+        // If both last and second-to-last points are visible from player, remove the last point
+        bool lastVisible = !Physics.Linecast(playerPos, lastPoint, obstacleLayerMask);
+        bool secondLastVisible = !Physics.Linecast(playerPos, secondLastPoint, obstacleLayerMask);
+
+        if (lastVisible && secondLastVisible)
         {
-            // Can we go directly from the previous point to the player?
-            Vector3 previousPoint = _ropePoints[i - 1];
-
-            if (!Physics.Linecast(previousPoint, playerPos, obstacleLayerMask))
-            {
-
-                _ropePoints.RemoveAt(i);
-            }
-            else
-            {
-
-                break;
-            }
+            _ropePoints.RemoveAt(_ropePoints.Count - 1);
         }
     }
 
