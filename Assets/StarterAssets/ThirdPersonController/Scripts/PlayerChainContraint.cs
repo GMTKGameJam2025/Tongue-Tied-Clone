@@ -1,0 +1,334 @@
+using UnityEngine;
+using System.Collections.Generic;
+
+[RequireComponent(typeof(CharacterController))]
+public class PlayerRopeConstraint : MonoBehaviour
+{
+    [Header("Rope Settings")]
+    public Transform anchorPoint;
+    public float ropeLength = 5.0f;
+    public bool ropeEnabled = true;
+    public LayerMask obstacleLayerMask = -1; // What layers can the rope wrap around
+    public float hitNormalOffset = 0.5f; // Offset for linecast hit
+    public float elevationOffset = 1.0f; // Height offset for rope visual and collision detection
+
+    [Header("Item Collection")]
+    public string itemTag = "Item"; // Tag for collectible items
+    public float ropeExtensionPerItem = 3.0f; // How much rope length increases per item
+    public AudioClip itemCollectSound; // Optional sound effect
+
+    [Header("Visual")]
+    public bool showRope = true;
+    public float ropeWidth = 0.05f;
+    public Material ropeMaterial;
+
+    [Header("Debug")]
+    public bool showDebugRays = false;
+
+    private CharacterController _controller;
+    private LineRenderer _line;
+    private List<Vector3> _ropePoints = new List<Vector3>();
+    private AudioSource _audioSource;
+    private float _initialRopeLength; // Store the initial rope length
+
+    // Events for item collection (optional)
+    public System.Action<GameObject> OnItemCollected;
+    public System.Action<float> OnRopeLengthChanged;
+
+    void Start()
+    {
+        _controller = GetComponent<CharacterController>();
+        _initialRopeLength = ropeLength; // Store initial length
+
+        // Get or add AudioSource for sound effects
+        _audioSource = GetComponent<AudioSource>();
+        if (_audioSource == null && itemCollectSound != null)
+        {
+            _audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        // Initialize rope points with just the anchor
+        if (anchorPoint != null)
+        {
+            _ropePoints.Add(anchorPoint.position);
+        }
+
+        if (showRope)
+        {
+            _line = gameObject.AddComponent<LineRenderer>();
+            _line.startWidth = ropeWidth;
+            _line.endWidth = ropeWidth;
+            _line.material = ropeMaterial ?? new Material(Shader.Find("Sprites/Default"));
+            _line.useWorldSpace = true;
+        }
+    }
+
+    void LateUpdate()
+    {
+        if (!ropeEnabled || anchorPoint == null)
+        {
+            if (_line != null) _line.enabled = false;
+            return;
+        }
+
+        UpdateRopePoints();
+        EnforceRopeConstraint();
+        UpdateVisuals();
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        // Check if the collided object has the item tag
+        if (other.CompareTag(itemTag))
+        {
+            CollectItem(other.gameObject);
+        }
+    }
+
+    void CollectItem(GameObject item)
+    {
+        // Increase rope length
+        ropeLength += ropeExtensionPerItem;
+
+        // Play sound effect if available
+        if (_audioSource != null && itemCollectSound != null)
+        {
+            _audioSource.PlayOneShot(itemCollectSound);
+        }
+
+        // Trigger events
+        OnItemCollected?.Invoke(item);
+        OnRopeLengthChanged?.Invoke(ropeLength);
+
+        // Optional: Add particle effect or visual feedback here
+        Debug.Log($"Item collected! New rope length: {ropeLength}");
+
+        // Destroy the item
+        Destroy(item);
+    }
+
+    void UpdateRopePoints()
+    {
+        // Ensure we always have at least the anchor point
+        if (_ropePoints.Count == 0)
+        {
+            _ropePoints.Add(anchorPoint.position);
+        }
+
+        // Update anchor position (in case it moves)
+        _ropePoints[0] = anchorPoint.position;
+
+        // Get the last point in our rope (the point we're checking from)
+        Vector3 lastPoint = _ropePoints[^1];
+        Vector3 playerPos = transform.position;
+
+        // Use elevated positions for the raycast to match visual rope height
+        Vector3 elevatedLastPoint = lastPoint;
+        elevatedLastPoint.y = transform.position.y + elevationOffset;
+
+        Vector3 elevatedPlayerPos = playerPos;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
+
+        // Check if there's an obstacle between the last point and player at rope height
+        RaycastHit hit;
+        Vector3 direction = elevatedPlayerPos - elevatedLastPoint;
+        float distance = direction.magnitude;
+
+        if (Physics.Linecast(elevatedPlayerPos, elevatedLastPoint, out hit, obstacleLayerMask))
+        {
+            // There's an obstacle! Add the hit point as a new rope point
+            Vector3 hitPoint = hit.point;
+
+            // Add a larger offset along the surface normal to avoid going through objects
+            Vector3 localOffset = hit.normal * hitNormalOffset;
+            hitPoint += localOffset;
+
+            Debug.DrawRay(hit.point, localOffset * 10f, Color.cyan, 1f);
+
+            // Also ensure the point is at the proper rope height
+            hitPoint.y = transform.position.y + elevationOffset;
+
+            _ropePoints.Add(hitPoint);
+
+            if (showDebugRays)
+            {
+                Debug.DrawRay(elevatedLastPoint, direction.normalized * hit.distance, Color.red, 0.1f);
+            }
+        }
+        else
+        {
+            // No obstacle, try to remove unnecessary points
+            RemoveUnnecessaryPoints();
+
+            if (showDebugRays)
+            {
+                Debug.DrawRay(elevatedLastPoint, direction.normalized * distance, Color.green, 0.1f);
+            }
+        }
+    }
+
+    void RemoveUnnecessaryPoints()
+    {
+        if (_ropePoints.Count < 2) return;
+
+        Vector3 playerPos = transform.position;
+        Vector3 lastPoint = _ropePoints[^1];
+        Vector3 secondLastPoint = _ropePoints[^2];
+
+        // If both last and second-to-last points are visible from player, remove the last point
+        bool lastVisible = !Physics.Linecast(playerPos, lastPoint, obstacleLayerMask);
+        bool secondLastVisible = !Physics.Linecast(playerPos, secondLastPoint, obstacleLayerMask);
+
+        if (lastVisible && secondLastVisible)
+        {
+            _ropePoints.RemoveAt(_ropePoints.Count - 1);
+        }
+    }
+
+    void EnforceRopeConstraint()
+    {
+        // Calculate total rope length used at elevated positions
+        float totalLength = 0f;
+        Vector3 elevatedPlayerPos = transform.position;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
+
+        // Add up all the segments using elevated positions for consistency
+        for (int i = 0; i < _ropePoints.Count - 1; i++)
+        {
+            Vector3 point1 = _ropePoints[i];
+            Vector3 point2 = _ropePoints[i + 1];
+
+            // Elevate both points for consistent measurement
+            point1.y = transform.position.y + elevationOffset;
+            point2.y = transform.position.y + elevationOffset;
+
+            totalLength += Vector3.Distance(point1, point2);
+        }
+
+        // Add the final segment from last rope point to player (both elevated)
+        if (_ropePoints.Count > 0)
+        {
+            Vector3 elevatedLastPoint = _ropePoints[^1];
+            elevatedLastPoint.y = transform.position.y + elevationOffset; ;
+            totalLength += Vector3.Distance(elevatedLastPoint, elevatedPlayerPos);
+        }
+
+        // If we're exceeding the rope length, pull the player back
+        if (totalLength > ropeLength)
+        {
+            Vector3 lastRopePoint = _ropePoints[^1];
+            Vector3 toPlayer = transform.position - lastRopePoint; // Use ground positions for movement
+            float lastSegmentLength = toPlayer.magnitude;
+            float allowedLastSegmentLength = ropeLength - totalLength + lastSegmentLength;
+
+            if (allowedLastSegmentLength < 0) allowedLastSegmentLength = 0;
+
+            Vector3 constrainedPos = lastRopePoint + toPlayer.normalized * allowedLastSegmentLength;
+            Vector3 correction = constrainedPos - transform.position;
+
+            _controller.Move(correction);
+        }
+    }
+
+    void UpdateVisuals()
+    {
+        if (!showRope || _line == null) return;
+
+        _line.enabled = true;
+
+        // Set up the line renderer with all rope points + elevated player position
+        List<Vector3> allPoints = new List<Vector3>(_ropePoints);
+
+        // Add elevated player position (like in your original code)
+        Vector3 elevatedPlayerPos = transform.position;
+        elevatedPlayerPos.y = transform.position.y + elevationOffset;
+        allPoints.Add(elevatedPlayerPos);
+
+        // Also elevate the anchor point for visual consistency
+        if (allPoints.Count > 0)
+        {
+            Vector3 elevatedAnchor = anchorPoint.position;
+            elevatedAnchor.y = transform.position.y + elevationOffset; ;
+            allPoints[0] = elevatedAnchor;
+        }
+
+        _line.positionCount = allPoints.Count;
+        for (int i = 0; i < allPoints.Count; i++)
+        {
+            _line.SetPosition(i, allPoints[i]);
+        }
+    }
+
+    // Helper method to get total rope length for debugging
+    public float GetCurrentRopeLength()
+    {
+        float totalLength = 0f;
+        Vector3 playerPos = transform.position;
+
+        for (int i = 0; i < _ropePoints.Count - 1; i++)
+        {
+            totalLength += Vector3.Distance(_ropePoints[i], _ropePoints[i + 1]);
+        }
+
+        if (_ropePoints.Count > 0)
+        {
+            totalLength += Vector3.Distance(_ropePoints[^1], playerPos);
+        }
+
+        return totalLength;
+    }
+
+    // Reset the rope 
+    public void ResetRope()
+    {
+        _ropePoints.Clear();
+        if (anchorPoint != null)
+        {
+            _ropePoints.Add(anchorPoint.position);
+        }
+    }
+
+    // Reset rope length to initial value
+    public void ResetRopeLength()
+    {
+        ropeLength = _initialRopeLength;
+        OnRopeLengthChanged?.Invoke(ropeLength);
+    }
+
+    // Get how much rope has been extended
+    public float GetRopeExtension()
+    {
+        return ropeLength - _initialRopeLength;
+    }
+
+    // Get number of items collected based on rope extension
+    public int GetItemsCollected()
+    {
+        return Mathf.FloorToInt(GetRopeExtension() / ropeExtensionPerItem);
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!ropeEnabled || anchorPoint == null) return;
+
+        // Draw rope points
+        Gizmos.color = Color.yellow;
+        foreach (Vector3 point in _ropePoints)
+        {
+            Gizmos.DrawWireSphere(point, 0.1f);
+        }
+
+        // Draw rope segments
+        Gizmos.color = Color.red;
+        for (int i = 0; i < _ropePoints.Count - 1; i++)
+        {
+            Gizmos.DrawLine(_ropePoints[i], _ropePoints[i + 1]);
+        }
+
+        // Draw final segment to player
+        if (_ropePoints.Count > 0)
+        {
+            Gizmos.DrawLine(_ropePoints[^1], transform.position);
+        }
+    }
+}
